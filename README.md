@@ -22,10 +22,6 @@ https://labs.tib.eu/sdm/p4lucat_sideeffects_api/exploration?topic=all&limit=10&p
    "tumorType":[
   	"C0152013"
    ],
-   "drugGroups":[
-  	"C0002771",
-  	"C0003232"
-   ],
    "drugs":[
   	"C0000979",
   	"C0028978"
