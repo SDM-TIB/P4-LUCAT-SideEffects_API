@@ -1,6 +1,6 @@
 # P4-LUCAT-SideEffects_API
 
-Retreive sideeffects based on the input variables
+Retrieve sideeffects based on the input variables
 
 
 
