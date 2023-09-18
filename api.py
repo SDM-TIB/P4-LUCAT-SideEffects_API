@@ -40,11 +40,11 @@ app = Flask(__name__)
 
 
 QUERY_DISORDERS_TO_DRUGS ="""
-SELECT DISTINCT ?drug ?drugLabel WHERE {  ?drug a <http://research.tib.eu/p4-lucat/vocab/Drug>.
-                            ?interaction <http://research.tib.eu/p4-lucat/vocab/interactor1_Drug> ?drug.     
-                            ?interaction <http://research.tib.eu/p4-lucat/vocab/interactor2Indication>  ?indication_ID. 
-                            ?indication_ID <http://research.tib.eu/p4-lucat/vocab/hasCUIAnnotation>  ?indication.
-                            ?drug <http://research.tib.eu/p4-lucat/vocab/drugLabel> ?drugLabel.
+SELECT DISTINCT ?drug ?drugLabel WHERE {  ?DrugDisorderInteraction a <http://research.tib.eu/p4-lucat/vocab/DrugDisorderInteraction>.
+?DrugDisorderInteraction <http://research.tib.eu/p4-lucat/vocab/precipitantDrug> ?drug.
+?DrugDisorderInteraction <http://research.tib.eu/p4-lucat/vocab/objectIndication> ?indication_ID.
+?indication_ID <http://research.tib.eu/p4-lucat/vocab/hasCUIAnnotation>  ?indication.
+?drug <http://research.tib.eu/p4-lucat/vocab/drugLabel> ?drugLabel.
 """
 
 QUERY_BIOMARKERS_TO_LC_DRUGS ="""
@@ -74,11 +74,11 @@ SELECT DISTINCT ?drug ?drugLabel WHERE {  ?biomarker_ID <http://research.tib.eu/
 
 QUERY_DISORDERS_TO_LCDRUGS ="""
 SELECT DISTINCT ?drug ?drugLabel WHERE {  ?drug a <http://research.tib.eu/p4-lucat/vocab/LungCancerDrug>.
-                                          ?drugDisorder a <http://research.tib.eu/p4-lucat/vocab/DrugDisorderInteraction>.
-                            ?drugDisorder <http://research.tib.eu/p4-lucat/vocab/interactor1_Drug>  ?drug.   
-                             ?drug <http://research.tib.eu/p4-lucat/vocab/drugLabel> ?drugLabel.  
-                            ?drugDisorder <http://research.tib.eu/p4-lucat/vocab/interactor2Indication>  ?indication_ID.    
-                            ?indication_ID <http://research.tib.eu/p4-lucat/vocab/hasCUIAnnotation> ?indication.
+?DrugDisorderInteraction a <http://research.tib.eu/p4-lucat/vocab/DrugDisorderInteraction>.
+?DrugDisorderInteraction <http://research.tib.eu/p4-lucat/vocab/precipitantDrug> ?drug.
+?DrugDisorderInteraction <http://research.tib.eu/p4-lucat/vocab/objectIndication> ?indication_ID.
+?indication_ID <http://research.tib.eu/p4-lucat/vocab/hasCUIAnnotation>  ?indication.
+?drug <http://research.tib.eu/p4-lucat/vocab/drugLabel> ?drugLabel.
 """
 
 QUERY_DISORDERS_TO_DEMENTIA_DRUGS ="""
@@ -95,6 +95,8 @@ QUERY_CUI_TO_DRUGS = """
 SELECT DISTINCT ?drug ?drugBankID WHERE {
                ?drug <http://research.tib.eu/p4-lucat/vocab/hasCUIAnnotation> ?drugCUI.
                ?drug <http://research.tib.eu/p4-lucat/vocab/drugBankID> ?drugBankID
+               FILTER(isURI(?drugBankID))
+               
 """
 
 QUERY_DRUGS_TO_SIDEEFFECTS_LC ="""
@@ -133,6 +135,8 @@ SELECT DISTINCT ?drug ?drugBankID WHERE {
                 ?drug a <http://research.tib.eu/p4-lucat/vocab/LungCancerDrug>.
                ?drug <http://research.tib.eu/p4-lucat/vocab/hasCUIAnnotation> ?drugCUI.
                ?drug <http://research.tib.eu/p4-lucat/vocab/drugBankID> ?drugBankID
+               FILTER(isURI(?drugBankID))
+               
 """
 
 QUERY_CUI_TO_DEMENTIA_DRUGS = """
@@ -141,6 +145,8 @@ SELECT DISTINCT ?drug ?drugBankID WHERE {
                 ?drug owl:sameAs ?drugdementia .
                ?drug <http://research.tib.eu/p4-lucat/vocab/hasCUIAnnotation> ?drugCUI.
                ?drug <http://research.tib.eu/p4-lucat/vocab/drugBankID> ?drugBankID.
+               FILTER(isURI(?drugBankID))
+               
 """
 
 QUERY_CUI_TO_AD_DRUGS = """
@@ -148,6 +154,8 @@ SELECT DISTINCT ?drug ?drugBankID WHERE {
                 ?drug a <http://research.tib.eu/p4-lucat/vocab/ADDrug>.
                ?drug <http://research.tib.eu/p4-lucat/vocab/hasCUIAnnotation> ?drugCUI.
                ?drug <http://research.tib.eu/p4-lucat/vocab/drugBankID> ?drugBankID.
+               FILTER(isURI(?drugBankID))
+               
 """
 
 QUERY_DISORDERS_TO_AD_DRUGS ="""
@@ -247,7 +255,7 @@ def drugsCUI2drugID_query(drugs,drugType='all'):
     query=query[:-1]
     query+="))}"
     qresults = execute_query(query)
-    qresults=[("http://research.tib.eu/p4-lucat/Drug/"+item['drugBankID']['value'],item['drug']['value']) for item in qresults]
+    qresults=[(item['drugBankID']['value'],item['drug']['value']) for item in qresults]
     return qresults
 
 def drug2sideEffect_query(drugs,topic):
@@ -263,22 +271,32 @@ def drug2sideEffect_query(drugs,topic):
     query=query[:-1]
     query+="))} ORDER BY DESC(?freq)"
     qresults = execute_query(query)
-    qresults=[(item['drugLabel']['value'],item['sideEffectLabel']['value'].replace("http://research.tib.eu/p4-lucat/p4-lucat/entity/","").replace("_"," ")) for item in qresults]
+    qresults=[(item['drugLabel']['value'],item['sideEffectLabel']['value'].replace("http://research.tib.eu/p4-lucat/entity/","").replace("_"," ")) for item in qresults]
     return qresults
 
 
     
-def sideEffects_filtering_sorting(sideEffects,page,sort,limit):
-    '''if sort!=0:
-        sorted_list=sorted(sideEffects, key=lambda k: k[sort]) 
-    else:'''
-    sorted_list=sideEffects
-    if limit==-1:
-        return sorted_list
-    if page==0:
-        return {k: sorted_list[k] for k in list(sorted_list)[page:limit]}
+def sideEffects_filtering_sorting(sideEffects, page, sort, limit):
+    # Sorting the side effects for each drug
+    for drug in sideEffects:
+        sideEffects[drug].sort(key=lambda x: x['sideEffect'])
+
+    # Sorting the drugs
+    sorted_drugs = sorted(sideEffects.items())
+
+    # Converting the sorted list back to a dictionary
+    sorted_dict = dict(sorted_drugs)
+
+    # if limit==-1: return the entire sorted_dict
+    if limit == -1:
+        return sorted_dict
+
+    # For pagination
+    if page == 0:
+        return {k: sorted_dict[k] for k in list(sorted_dict)[page:limit]}
     else:
-        return {k: sorted_list[k] for k in list(sorted_list)[page*limit:(page*limit)+limit]}
+        return {k: sorted_dict[k] for k in list(sorted_dict)[page*limit:(page*limit)+limit]}
+
 
 def check_dict_duplicate(list_of_dict,dict_):
     for dic in list_of_dict:
@@ -290,6 +308,11 @@ def check_dict_duplicate(list_of_dict,dict_):
             return True
 
     return False
+
+def remove_duplicates(lst):
+    seen = set()
+    no_duplicates = [item for item in lst if (item['sideEffect'], item['group']) not in seen and not seen.add((item['sideEffect'], item['group']))]
+    return no_duplicates
 def proccesing_response(input_dicc, topic,limit,page,sort):
     cuis=dict()
     codicc=dict()
@@ -309,11 +332,11 @@ def proccesing_response(input_dicc, topic,limit,page,sort):
           
              ##############################sideEffects################################3
           
-        if elem=='comorbidities' or elem=='tumorType':
+        if elem=='comorbidities' or elem=='histology':
             drugs=disorder2drugs_query(input_dicc[elem],topic)
         elif elem=='biomarkers':
             drugs=biomarkers2drugs_query(input_dicc[elem],topic)
-        elif elem in ['drugs','oncologicalTreatments','immunotherapyDrugs','tkiDrugs','chemotherapyDrugs']:
+        elif elem in ['LCdrugs']:
             drugs=drugsCUI2drugID_query(input_dicc[elem],topic)
         if len(drugs)!=0:
             drug_sideEffects=drug2sideEffect_query([drug[0] for drug in drugs],topic)
@@ -324,7 +347,8 @@ def proccesing_response(input_dicc, topic,limit,page,sort):
                 sideEffects[item[0]].append({"sideEffect": item[1] , "group": elem})
             
             ######################################################################################    
-
+    for drug in sideEffects:
+        sideEffects[drug] = remove_duplicates(sideEffects[drug])
     codicc['sideEffects']={}
     codicc['sideEffects']['resultsTotal'] = len(sideEffects)
     codicc['sideEffects']['results'] = sideEffects_filtering_sorting(sideEffects,page,0,limit)
