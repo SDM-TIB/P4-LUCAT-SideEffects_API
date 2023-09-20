@@ -309,10 +309,8 @@ def check_dict_duplicate(list_of_dict,dict_):
 
     return False
 
-def remove_duplicates(lst):
-    seen = set()
-    no_duplicates = [item for item in lst if (item['sideEffect'], item['group']) not in seen and not seen.add((item['sideEffect'], item['group']))]
-    return no_duplicates
+
+
 def proccesing_response(input_dicc, topic,limit,page,sort):
     cuis=dict()
     codicc=dict()
@@ -344,11 +342,15 @@ def proccesing_response(input_dicc, topic,limit,page,sort):
             for item in drug_sideEffects:
                 if item[0] not in sideEffects:
                     sideEffects[item[0]]=[]
-                sideEffects[item[0]].append({"sideEffect": item[1] , "group": elem})
+                    sideEffects[item[0]].append({"sideEffect": [] , "category": elem})
+                sideEffects[item[0]][-1]["sideEffect"].append(item[1])
             
             ######################################################################################    
     for drug in sideEffects:
-        sideEffects[drug] = remove_duplicates(sideEffects[drug])
+        for entry in sideEffects[drug]:
+            if 'sideEffects' in entry:
+                entry['sideEffects'] = list(set(entry['sideEffects']))
+
     codicc['sideEffects']={}
     codicc['sideEffects']['resultsTotal'] = len(sideEffects)
     codicc['sideEffects']['results'] = sideEffects_filtering_sorting(sideEffects,page,0,limit)
