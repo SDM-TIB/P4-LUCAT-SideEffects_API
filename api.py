@@ -18,7 +18,7 @@ LIMIT=10
 
 #KG="http://localhost:11384/sparql"
 KG = os.environ["ENDPOINT"]
-#KG="http://node2.research.tib.eu:8893/sparql"
+#KG="http://node1.research.tib.eu:41111/sparql"
 #all
 #KG="http://node2.research.tib.eu:18871/sparql"
 #KG="http://node2.research.tib.eu:11789/sparql"
@@ -105,6 +105,7 @@ SELECT DISTINCT ?drugLabel ?sideEffectLabel WHERE {  ?drug a <http://research.ti
                             ?drug <http://research.tib.eu/p4-lucat/vocab/drug_isRelatedTo_dse>  ?drugSideEffect.
                             ?drugSideEffect <http://research.tib.eu/p4-lucat/vocab/dse_AvgFrequency> ?freq.
                             ?sideEffectLabel <http://research.tib.eu/p4-lucat/vocab/sideEffect_isRelatedTo_dse> ?drugSideEffect.
+                            FILTER( abs(xsd:float(?freq))>= "0.50"^^xsd:float)
                   
                            
 """
@@ -115,6 +116,7 @@ SELECT DISTINCT ?drugLabel ?sideEffectLabel WHERE {  ?drug a <http://research.ti
                             ?drug <http://research.tib.eu/p4-lucat/vocab/drug_isRelatedTo_dse>  ?drugSideEffect.
                             ?drugSideEffect <http://research.tib.eu/p4-lucat/vocab/dse_AvgFrequency> ?freq.
                             ?sideEffectLabel <http://research.tib.eu/p4-lucat/vocab/sideEffect_isRelatedTo_dse> ?drugSideEffect.
+                            FILTER( abs(xsd:float(?freq))>= "0.50"^^xsd:float)
                   
                            
 """
@@ -126,6 +128,7 @@ SELECT DISTINCT ?drugLabel ?sideEffectLabel WHERE {  ?drug a <http://research.ti
                             ?drug <http://research.tib.eu/p4-lucat/vocab/drug_isRelatedTo_dse>  ?drugSideEffect.
                             ?drugSideEffect <http://research.tib.eu/p4-lucat/vocab/dse_AvgFrequency> ?freq.
                             ?sideEffectLabel <http://research.tib.eu/p4-lucat/vocab/sideEffect_isRelatedTo_dse> ?drugSideEffect.
+                            FILTER( abs(xsd:float(?freq))>= "0.50"^^xsd:float)
                            
                            
 """
