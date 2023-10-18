@@ -10,6 +10,7 @@ import json
 from SPARQLWrapper import SPARQLWrapper, JSON
 import logging
 import os
+import urllib.parse
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -103,9 +104,9 @@ QUERY_DRUGS_TO_SIDEEFFECTS_LC ="""
 SELECT DISTINCT ?drugLabel ?sideEffectLabel WHERE {  ?drug a <http://research.tib.eu/p4-lucat/vocab/Drug>.
                                            ?drug <http://research.tib.eu/p4-lucat/vocab/drugLabel> ?drugLabel.
                             ?drug <http://research.tib.eu/p4-lucat/vocab/drug_isRelatedTo_dse>  ?drugSideEffect.
-                            ?drugSideEffect <http://research.tib.eu/p4-lucat/vocab/dse_AvgFrequency> ?freq.
+                            ?drugSideEffect <http://research.tib.eu/p4-lucat/vocab/dse_AvgFrequency> ?freqStr.
                             ?sideEffectLabel <http://research.tib.eu/p4-lucat/vocab/sideEffect_isRelatedTo_dse> ?drugSideEffect.
-                            FILTER( abs(xsd:float(?freq))>= "0.50"^^xsd:float)
+                      
                   
                            
 """
@@ -114,9 +115,9 @@ QUERY_DRUGS_TO_SIDEEFFECTS_ALL ="""
 SELECT DISTINCT ?drugLabel ?sideEffectLabel WHERE {  ?drug a <http://research.tib.eu/p4-lucat/vocab/Drug>.
                                            ?drug <http://research.tib.eu/p4-lucat/vocab/drugLabel> ?drugLabel.
                             ?drug <http://research.tib.eu/p4-lucat/vocab/drug_isRelatedTo_dse>  ?drugSideEffect.
-                            ?drugSideEffect <http://research.tib.eu/p4-lucat/vocab/dse_AvgFrequency> ?freq.
+                            ?drugSideEffect <http://research.tib.eu/p4-lucat/vocab/dse_AvgFrequency> ?freqStr.
                             ?sideEffectLabel <http://research.tib.eu/p4-lucat/vocab/sideEffect_isRelatedTo_dse> ?drugSideEffect.
-                            FILTER( abs(xsd:float(?freq))>= "0.50"^^xsd:float)
+                
                   
                            
 """
@@ -126,9 +127,8 @@ QUERY_DRUGS_TO_SIDEEFFECTS_AD_D ="""
 SELECT DISTINCT ?drugLabel ?sideEffectLabel WHERE {  ?drug a <http://research.tib.eu/p4-lucat/vocab/Drug>.
                                            ?drug <http://research.tib.eu/p4-lucat/vocab/drugLabel> ?drugLabel.
                             ?drug <http://research.tib.eu/p4-lucat/vocab/drug_isRelatedTo_dse>  ?drugSideEffect.
-                            ?drugSideEffect <http://research.tib.eu/p4-lucat/vocab/dse_AvgFrequency> ?freq.
+                            ?drugSideEffect <http://research.tib.eu/p4-lucat/vocab/dse_AvgFrequency> ?freqStr.
                             ?sideEffectLabel <http://research.tib.eu/p4-lucat/vocab/sideEffect_isRelatedTo_dse> ?drugSideEffect.
-                            FILTER( abs(xsd:float(?freq))>= "0.50"^^xsd:float)
                            
                            
 """
@@ -261,18 +261,22 @@ def drugsCUI2drugID_query(drugs,drugType='all'):
     qresults=[(item['drugBankID']['value'],item['drug']['value']) for item in qresults]
     return qresults
 
-def drug2sideEffect_query(drugs,topic):
+def drug2sideEffect_query(drugs,topic,threshold):
     if topic=="all":
         query=QUERY_DRUGS_TO_SIDEEFFECTS_ALL
     if topic=="lc":
         query=QUERY_DRUGS_TO_SIDEEFFECTS_LC
     elif topic=="dementia" or topic=="ad":
         query=QUERY_DRUGS_TO_SIDEEFFECTS_AD_D
+
+    if threshold!=0:
+        query+="BIND(xsd:float(?freqStr) AS ?freq)"
+        query += "FILTER(?freq >= "+str(threshold/100)+")"
     query+="FILTER(?drug in ("
     for drug in drugs:
         query+="<"+drug+">,"
     query=query[:-1]
-    query+="))} ORDER BY DESC(?freq)"
+    query+="))} ORDER BY DESC(?freqStr)"
     qresults = execute_query(query)
     qresults=[(item['drugLabel']['value'],item['sideEffectLabel']['value'].replace("http://research.tib.eu/p4-lucat/entity/","").replace("_"," ")) for item in qresults]
     return qresults
@@ -316,7 +320,7 @@ def remove_duplicates(lst):
     seen = set()
     no_duplicates = [item for item in lst if (item['sideEffect'], item['group']) not in seen and not seen.add((item['sideEffect'], item['group']))]
     return no_duplicates
-def proccesing_response(input_dicc, topic,limit,page,sort):
+def proccesing_response(input_dicc, topic,limit,page,sort,threshold):
     cuis=dict()
     codicc=dict()
     sideEffects=dict()
@@ -342,12 +346,12 @@ def proccesing_response(input_dicc, topic,limit,page,sort):
         elif elem in ['LCdrugs']:
             drugs=drugsCUI2drugID_query(input_dicc[elem],topic)
         if len(drugs)!=0:
-            drug_sideEffects=drug2sideEffect_query([drug[0] for drug in drugs],topic)
+            drug_sideEffects=drug2sideEffect_query([drug[0] for drug in drugs],topic,threshold)
             
             for item in drug_sideEffects:
                 if item[0] not in sideEffects:
                     sideEffects[item[0]]=[]
-                sideEffects[item[0]].append({"sideEffect": item[1] , "group": elem})
+                sideEffects[item[0]].append({"sideEffect": urllib.parse.unquote(item[1]) , "group": elem})
             
             ######################################################################################    
     for drug in sideEffects:
@@ -381,6 +385,10 @@ def run_exploration_api():
         sort = request.args['sort']
     else:
         sort = 0
+    if 'threshold' in request.args:
+        threshold = int(request.args['threshold'])
+    else:
+        threshold = 0
 
 
     input_list = request.json
@@ -388,7 +396,7 @@ def run_exploration_api():
         logger.info("Error in the input format")
         r = "{results: 'Error in the input format'}"
     else:
-        response = proccesing_response(input_list, topic,limit,page,sort)
+        response = proccesing_response(input_list, topic,limit,page,sort,threshold)
         r = json.dumps(response, indent=4)            
     logger.info("Sending the results: ")
     response = make_response(r, 200)
